@@ -1,10 +1,10 @@
 import os
 import torch
 from PIL import Image
-from Helper.json_reader import JsonReader
+from helper.json_reader import JsonReader
 from torch.utils.data import Dataset, DataLoader
 
-class Easy4ProDataset(Dataset):
+class OrientationDetectorDataset(Dataset):
     def __init__(self, working_dir, json_reader: JsonReader, transform):
         self.json_images = json_reader.get_images()
         self.json_targets = json_reader.get_target()
@@ -55,7 +55,7 @@ class Easy4ProDataset(Dataset):
     def print(self):
         print(self.targets)
 
-from Helper.config import BATCH_SIZE
+from helper.config import BATCH_SIZE
 def create_loader(dataset, shuffle=True):
     return DataLoader(
         dataset=dataset,

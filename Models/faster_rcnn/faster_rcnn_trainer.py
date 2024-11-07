@@ -5,10 +5,10 @@ import torchvision.transforms as transforms
 from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
-from DataSet.dataset import Easy4ProDataset, create_loader
-from Helper.model_saver import ModelSaver
-from Helper.json_reader import JsonReader
-from Helper.config import NUM_CLASSES, DEVICE, TRAINING_SIZE, MEAN, STD, NUM_EPOCHS
+from dataset.orientation_detector_dataset import OrientationDetectorDataset, create_loader
+from helper.model_saver import ModelSaver
+from helper.json_reader import JsonReader
+from helper.config import NUM_CLASSES, DEVICE, TRAINING_SIZE, MEAN, STD, NUM_EPOCHS
 
 class Trainer:
     def __init__(self):
@@ -18,11 +18,11 @@ class Trainer:
             transforms.Normalize(mean=[MEAN], std=[STD])
         ])
             
-        train_dataset = Easy4ProDataset('DataSet/train', 
+        train_dataset = OrientationDetectorDataset('DataSet/train', 
                                         json_reader=JsonReader('DataSet/train/_annotations.coco.json'), 
                                         transform=self.transform)
         
-        val_dataset = Easy4ProDataset('DataSet/valid', 
+        val_dataset = OrientationDetectorDataset('DataSet/valid', 
                                       json_reader=JsonReader('DataSet/valid/_annotations.coco.json'), 
                                       transform=self.transform)
 

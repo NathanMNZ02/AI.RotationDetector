@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from PIL import Image, ImageOps
-from Helper.config import TRAINING_SIZE, TEST_DIR, MEAN, STD, CLASSES, NUM_CLASSES, DEVICE
+from helper.config import TRAINING_SIZE, TEST_DIR, MEAN, STD, CLASSES, NUM_CLASSES, DEVICE
 
 class Predictor:    
     def __init__(self):
