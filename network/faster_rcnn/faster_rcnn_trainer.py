@@ -1,41 +1,38 @@
 import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
+import albumentations as A
 
-from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
+from albumentations.pytorch import ToTensorV2
+
+from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from dataset.orientation_detector_dataset import OrientationDetectorDataset, create_loader
 from helper.model_saver import ModelSaver
 from helper.json_reader import JsonReader
-from helper.config import NUM_CLASSES, DEVICE, TRAINING_SIZE, MEAN, STD, NUM_EPOCHS
+from helper.config import NUM_CLASSES, DEVICE, NUM_EPOCHS
 
 class Trainer:
-    def __init__(self):
-        self.transform = transforms.Compose([
-            transforms.Resize(TRAINING_SIZE),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[MEAN], std=[STD])
-        ])
+    def __init__(self, dataset_dir):
+        self.transform = A.Compose([ToTensorV2(p=1.0)])
             
-        train_dataset = OrientationDetectorDataset('DataSet/train', 
-                                        json_reader=JsonReader('DataSet/train/_annotations.coco.json'), 
+        train_dataset = OrientationDetectorDataset(f'{dataset_dir}/train', 
+                                        json_reader=JsonReader(f'{dataset_dir}/train/_annotations.coco.json'), 
                                         transform=self.transform)
         
-        val_dataset = OrientationDetectorDataset('DataSet/valid', 
-                                      json_reader=JsonReader('DataSet/valid/_annotations.coco.json'), 
+        val_dataset = OrientationDetectorDataset(f'{dataset_dir}/valid', 
+                                      json_reader=JsonReader(f'{dataset_dir}/valid/_annotations.coco.json'), 
                                       transform=self.transform)
 
         self.train_loader = create_loader(train_dataset)
         self.val_loader = create_loader(val_dataset, False)
         
-        self.model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
+        self.model = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
         in_features = self.model.roi_heads.box_predictor.cls_score.in_features
         self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, NUM_CLASSES)
         self.model.to(DEVICE)
         
         params = [p for p in self.model.parameters() if p.requires_grad]
-        self.optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+        self.optimizer = torch.optim.SGD(params, lr=0.0001, momentum=0.9, weight_decay=0.0005)
         
     def start(self):
         model_saver = ModelSaver()
@@ -43,8 +40,8 @@ class Trainer:
             self.model.train()
             train_loss = 0.0
             
-            for i, data in enumerate(self.train_loader):
-                self.optimizer.zero_grad()
+            for _, data in enumerate(self.train_loader):
+                self.optimizer.zero_grad() # Set gradient value to zero for new batch
 
                 images, targets = data
                 
@@ -52,20 +49,22 @@ class Trainer:
                 images = [image.to(DEVICE) for image in images]
                 targets = [{k: v.to(DEVICE) for k, v in target.items()} for target in targets]
                 
-                loss_dict = self.model(images, targets)     
+                # Get model losses dictionary, contains something like:
+                # {'loss_classifier': 0.123, 'loss_box_reg': 0.045, 'loss_objectness': 0.032, 'loss_rpn_box_reg': 0.012}
+                loss_dict = self.model(images, targets) 
                 
                 losses = sum(loss for loss in loss_dict.values())
                 loss_value = losses.item()
 
                 losses.backward()
-                self.optimizer.step()
+                self.optimizer.step() # Update model weights
                 
                 train_loss += loss_value
 
             avg_train_loss = train_loss / len(self.train_loader)
             
             val_loss = 0.0
-            for i, data in enumerate(self.val_loader):
+            for _, data in enumerate(self.val_loader):
                 images, targets = data
                 
                 #Put data on the GPU

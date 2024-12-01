@@ -1,15 +1,20 @@
 import os
 import torch
+import numpy as np
+
 from PIL import Image
 from helper.json_reader import JsonReader
 from torch.utils.data import Dataset, DataLoader
+from helper.config import CLASSES
+from albumentations.pytorch import ToTensorV2
 
 class OrientationDetectorDataset(Dataset):
-    def __init__(self, working_dir, json_reader: JsonReader, transform):
+    def __init__(self, working_dir, json_reader: JsonReader, transform: ToTensorV2):
         self.json_images = json_reader.get_images()
         self.json_targets = json_reader.get_target()
         self.working_dir = working_dir
         self.transform = transform
+        self.classes = CLASSES
         
     def __len__(self):
         return len(self.json_images)
@@ -20,9 +25,7 @@ class OrientationDetectorDataset(Dataset):
         #Read image, convert to RGB and normalize
         image_path = os.path.join(self.working_dir, json_image['file_name'])
         image = Image.open(image_path).convert("RGB") 
-        if self.transform:
-            image = self.transform(image)
-
+        image = np.array(image, dtype=np.float32) / 255.0
         
         #Read annotations for the image
         targets = []
@@ -49,6 +52,10 @@ class OrientationDetectorDataset(Dataset):
         target['iscrowd'] = iscrowd
         image_id = torch.tensor([idx])
         target['image_id'] = image_id
+        
+        if self.transform:
+            transform = self.transform(image=image)
+            image = transform['image']
  
         return image, target
     
