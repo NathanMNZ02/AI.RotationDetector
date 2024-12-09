@@ -4,7 +4,6 @@ import torch.optim as optim
 
 from structure.pp2p_generator import PP2PGenerator
 from structure.pp2p_discriminator import PP2PDiscriminator
-from helper.config import DEVICE
 
 class Trainer:
     def __init__(self, ngpu):

@@ -6,22 +6,22 @@ from albumentations.pytorch import ToTensorV2
 from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
-from dataset.orientation_detector_dataset import OrientationDetectorDataset, create_loader
+from dataset.object_detection_dataset import ObjectDetectionDataset, create_loader
 from helper.model_saver import ModelSaver
-from helper.json_reader import JsonReader
+from helper.coco_annotations_reader import CocoAnnotationsReader
 
 class Trainer:
-    def __init__(self, dataset_dir: str, num_classes: int):
+    def __init__(self, dataset_dir: str):
         self.device = self.__get_dev__()
         
         self.transform = A.Compose([ToTensorV2(p=1.0)])
             
-        train_dataset = OrientationDetectorDataset(f'{dataset_dir}/train', 
-                                        json_reader=JsonReader(f'{dataset_dir}/train/_annotations.coco.json'), 
+        train_dataset = ObjectDetectionDataset(f'{dataset_dir}/train', 
+                                        json_reader=CocoAnnotationsReader(f'{dataset_dir}/train/_annotations.coco.json'), 
                                         transform=self.transform)
         
-        val_dataset = OrientationDetectorDataset(f'{dataset_dir}/valid', 
-                                      json_reader=JsonReader(f'{dataset_dir}/valid/_annotations.coco.json'), 
+        val_dataset = ObjectDetectionDataset(f'{dataset_dir}/valid', 
+                                      json_reader=CocoAnnotationsReader(f'{dataset_dir}/valid/_annotations.coco.json'), 
                                       transform=self.transform)
 
         self.train_loader = create_loader(train_dataset)
@@ -29,7 +29,7 @@ class Trainer:
         
         self.model = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
         in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, len(train_dataset.classes))
         self.model.to(self.device)
         
         params = [p for p in self.model.parameters() if p.requires_grad]

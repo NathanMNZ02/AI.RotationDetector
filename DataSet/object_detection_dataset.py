@@ -3,13 +3,13 @@ import torch
 import numpy as np
 
 from PIL import Image
-from helper.json_reader import JsonReader
+from helper.coco_annotations_reader import CocoAnnotationsReader
 from torch.utils.data import Dataset, DataLoader
 from albumentations.pytorch import ToTensorV2
 
-class OrientationDetectorDataset(Dataset):
+class ObjectDetectionDataset(Dataset):
     """
-    Dataset per la rilevazione di orientamento con bounding box.
+    Dataset per la rilevazione di oggetti tramite bounding box.
 
     Fornisce logica per il caricamento di immagini e annotazioni, supportando
     trasformazioni e preparazione di target per il training.
@@ -26,12 +26,14 @@ class OrientationDetectorDataset(Dataset):
         transform (albumentations.pytorch.ToTensorV2): Trasformazioni da applicare.
         classes (list): Categorie di classi estratte dal JSON.
     """
-    def __init__(self, working_dir, json_reader: JsonReader, transform: ToTensorV2):
-        self.json_images = json_reader.get_images()
-        self.json_targets = json_reader.get_target()
+    def __init__(self, working_dir, json_reader: CocoAnnotationsReader, transform: ToTensorV2):
         self.working_dir = working_dir
-        self.transform = transform
+        
+        self.json_images = json_reader.get_images()
+        self.json_targets = json_reader.get_targets()
         self.classes = json_reader.get_categories()
+        
+        self.transform = transform
         
     def __len__(self):
         """

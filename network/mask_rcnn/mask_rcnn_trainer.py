@@ -7,35 +7,36 @@ from torchvision.models.detection.mask_rcnn import maskrcnn_resnet50_fpn_v2, Mas
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
-from dataset.orientation_detector_dataset import OrientationDetectorDataset, create_loader
+from dataset.instance_segmentation_dataset import InstanceSegmentationDataset, create_loader
 from helper.model_saver import ModelSaver
-from helper.json_reader import JsonReader
+from helper.coco_annotations_reader import CocoAnnotationsReader
 
 class Trainer:
-    def __init__(self, dataset_dir: str, num_classes: int):
+    def __init__(self, dataset_dir: str, transforms = [A.Compose([ToTensorV2(p=1.0)])]):
         self.device = self.__get_dev__()
+                
+        train_dataset = InstanceSegmentationDataset(f'{dataset_dir}/train', 
+                                json_reader=CocoAnnotationsReader(f'{dataset_dir}/train/_annotations.coco.json'), 
+                                transforms=transforms)
         
-        self.transform = A.Compose([ToTensorV2(p=1.0)])
-        
-        train_dataset = OrientationDetectorDataset(f'{dataset_dir}/train', 
-                                json_reader=JsonReader(f'{dataset_dir}/train/_annotations.coco.json'), 
-                                transform=self.transform)
-        
-        val_dataset = OrientationDetectorDataset(f'{dataset_dir}/valid', 
-                                      json_reader=JsonReader(f'{dataset_dir}/valid/_annotations.coco.json'), 
-                                      transform=self.transform)
+        val_dataset = InstanceSegmentationDataset(f'{dataset_dir}/valid', 
+                                      json_reader=CocoAnnotationsReader(f'{dataset_dir}/valid/_annotations.coco.json'),
+                                      transforms=transforms)
         
         self.train_loader = create_loader(train_dataset)
-        self.val_loader = create_loader(val_dataset, False)
+        self.val_loader = create_loader(val_dataset, shuffle=False)
         
         self.model = maskrcnn_resnet50_fpn_v2(MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
         in_features_box = self.model.roi_heads.box_predictor.cls_score.in_features
         in_features_mask = self.model.roi_heads.mask_predictor.conv5_mask.in_channels
         
         dim_reduced = self.model.roi_heads.mask_predictor.conv5_mask.out_channels
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features_box, num_classes)
-        self.model.roi_heads.box_predictor = MaskRCNNPredictor(in_features_mask, dim_reduced, num_classes)
-        self.model.to(self.device)
+        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features_box, len(train_dataset.classes))
+        self.model.roi_heads.box_predictor = MaskRCNNPredictor(in_features_mask, dim_reduced, len(train_dataset.classes))
+        self.model.to(device = self.device)
+        
+        self.model.device = self.device
+        self.model.name = 'maskrcnn_resnet50_fpn_v2'
         
         params = [p for p in self.model.parameters() if p.requires_grad]
         self.optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
@@ -43,15 +44,15 @@ class Trainer:
     def __get_dev__(self):
         if torch.cuda.is_available():
             device = torch.device('cuda') 
-        elif torch.backends.mps.is_available():
+       # elif torch.backends.mps.is_available():
             device = torch.device('mps')  
-        elif torch.backends.opencl.is_available():
+        # elif torch.backends.opencl.is_available():
             device = torch.device('opencl')
         else:
             device = torch.device('cpu')
             
         return device
-    
+        
     def start(self, num_epochs: int):
         model_saver = ModelSaver()
         for epoch in range(num_epochs):
@@ -68,7 +69,7 @@ class Trainer:
                 targets = [{k: v.to(self.device) for k, v in target.items()} for target in targets]
                 
                 loss_dict = self.model(images, targets) 
-                
+
                 losses = sum(loss for loss in loss_dict.values())
                 loss_value = losses.item()
 
