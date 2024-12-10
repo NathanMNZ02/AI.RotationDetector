@@ -1,4 +1,4 @@
-# AI.RotationDetector
+# Easy4Pro.Intelligence
 Questo repository contiene implementazioni pronte all'uso per la creazione, l'addestramento e la predizione di modelli di deep learning per diversi task di visione artificiale. Attualmente, i modelli implementati includono:
 
 ## Modelli Implementati
