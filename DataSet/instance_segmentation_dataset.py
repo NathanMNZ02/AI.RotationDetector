@@ -38,7 +38,10 @@ class InstanceSegmentationDataset(Dataset):
         self.json_targets = json_reader.get_targets()
         self.classes = json_reader.get_categories()
         
-        self.transforms = transforms
+        if transforms != None:
+            self.transforms = transforms
+        else:
+            self.transforms = [A.Compose([ToTensorV2(p=1.0)])]
         
     def __len__(self):
         """
@@ -97,17 +100,28 @@ class InstanceSegmentationDataset(Dataset):
         bboxes = BoundingBoxes(data=torchvision.ops.masks_to_boxes(masks), format='xyxy', canvas_size=(json_image['width'], json_image['height']))
 
         targets = {
-            'masks': Mask(masks), 
+            'image_id': json_image['id'],
+            'masks': masks, 
             'boxes': bboxes, 
-            'labels': labels
+            'labels': labels,
         }
-        print(targets)
         
         if self.transforms:
             transform = self.transforms[transform_idx]
             image = transform(image = image)['image']
  
-        return image, target
+        return image, targets
+    
+    def check_outpu(self):
+        for idx in range(0, self.__len__()):
+            image, targets = self.__getitem__(idx)
+            
+            if image.shape != (3, 600, 600):
+                print('Image shape error')
+            if targets['masks'].shape != (1, 600, 600):
+                print('mask shape error')
+                print(targets['masks'].shape)
+                print(targets['image_id'])
                         
     def visualize(self):
         for json_image in self.json_images:

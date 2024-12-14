@@ -1,6 +1,7 @@
 import os
 import torch
 import numpy as np
+import albumentations as A
 
 from PIL import Image
 from helper.coco_annotations_reader import CocoAnnotationsReader
@@ -26,15 +27,18 @@ class ObjectDetectionDataset(Dataset):
         transform (albumentations.pytorch.ToTensorV2): Trasformazioni da applicare.
         classes (list): Categorie di classi estratte dal JSON.
     """
-    def __init__(self, working_dir, json_reader: CocoAnnotationsReader, transform: ToTensorV2):
+    def __init__(self, working_dir, json_reader: CocoAnnotationsReader, transforms = [A.Compose([ToTensorV2(p=1.0)])]):
         self.working_dir = working_dir
         
         self.json_images = json_reader.get_images()
         self.json_targets = json_reader.get_targets()
         self.classes = json_reader.get_categories()
         
-        self.transform = transform
-        
+        if transforms != None:
+            self.transforms = transforms
+        else:
+            self.transforms = [A.Compose([ToTensorV2(p=1.0)])]
+                    
     def __len__(self):
         """
         Restituisce il numero di immagini nel dataset.
@@ -42,7 +46,7 @@ class ObjectDetectionDataset(Dataset):
         Returns:
             int: Numero di immagini.
         """
-        return len(self.json_images)
+        return len(self.json_images) * len(self.transforms)
         
     def __getitem__(self, idx):
         """
@@ -55,40 +59,38 @@ class ObjectDetectionDataset(Dataset):
             tuple: (image, target), dove `image` è un tensore normalizzato 
                    e `target` è un dizionario contenente bounding box, etichette, area, ecc.
         """
-        json_image = self.json_images[idx]
+        original_idx = idx // len(self.transforms)
+        transform_idx = idx % len(self.transforms)
+        
+        json_image = self.json_images[original_idx]
                 
         image_path = os.path.join(self.working_dir, json_image['file_name'])
         image = Image.open(image_path).convert("RGB") 
-        image = np.array(image, dtype=np.float32) / 255.0
+        image = np.array(image, dtype=np.float32) 
         
         targets = []
         for json_target in self.json_targets:
             if json_target['image_id'] == json_image['id']:
                 targets.append(json_target)
          
-        boxes = []
+        bboxes = []
         labels = []
         for target in targets:
             labels.append(target["category_id"])
             x, y, w, h = target["bbox"]
-            boxes.append([x, y, x + w, y + h])
+            bboxes.append([x, y, x + w, y + h])
         
-        boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-        iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        bboxes = torch.as_tensor(bboxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
         
-        target = {}
-        target['boxes'] = boxes
-        target['labels'] = labels
-        target['area'] = area
-        target['iscrowd'] = iscrowd
-        image_id = torch.tensor([idx])
-        target['image_id'] = image_id
+        target = {
+            'boxes': bboxes, 
+            'labels': labels,
+        }
         
-        if self.transform:
-            transform = self.transform(image=image)
-            image = transform['image']
+        if self.transforms:
+            transform = self.transforms[transform_idx]
+            image = transform(image = image)['image']
  
         return image, target
     
